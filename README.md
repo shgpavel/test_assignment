@@ -1,36 +1,34 @@
-# test_task
+## test_task
 
-**To build**\
-Just run `make` at src/ directory
+### Build
+<pre><code class="shell">   make</code></pre>
 
-**To install**
-```shell
-#  insmod $(PWD)/dmp.ko
-```
+### Install
+<pre><code class="shell">#  insmod $(PWD)/dmp.ko</code></pre>
 
-**To test**
-```shell
+
+### Test
+
 First create the example device and proxy device by doing
 
-#  dmsetup create zero1 --table "0 _SIZE_ zero" # You should define the _SIZE_
-#  dmsetup create dmp1  --table "0 _SIZE_ dmp /dev/mapper/zero1"
+<pre><code class="shell">#  dmsetup create zero1 --table "0 _SIZE_ zero" # You should define the _SIZE_</code></pre>
+<pre><code class="shell">#  dmsetup create dmp1  --table "0 _SIZE_ dmp /dev/mapper/zero1"</code></pre>
 
 Then make sure everything was successfully created with
-#  dmsetup ls
+<pre><code class="shell">#  dmsetup ls</code></pre>
 Or
-$  ls -al /dev/mapper/*
+<pre><code class="shell">$  ls -al /dev/mapper/*</code></pre>
 
 After try to read and write to a proxy device
-#  dd if=/dev/random of=/dev/mapper/dmp1 bs=4k count=1
-#  dd of=/dev/null if=/dev/mapper/dmp1 bs=4k count=1
+<pre><code class="shell">#  dd if=/dev/random of=/dev/mapper/dmp1 bs=4k count=1</code></pre>
+<pre><code class="shell">#  dd of=/dev/null if=/dev/mapper/dmp1 bs=4k count=1</code></pre>
 
 For statistics
-#  cat /sys/module/dmp/stat/volumes
-```
+<pre><code class="shell">#  cat /sys/module/dmp/stat/volumes</code></pre>
 
-**To remove**
-```shell
-First you need to remove created devices, so run
+
+### Remove
+<pre><code class="shell">First you need to remove created devices, so run
 #  dmsetup remove dmp1 zero1
 
 Then unload the module
@@ -38,4 +36,4 @@ Then unload the module
 
 And clean src directory
 make clean
-```
+</code></pre>
