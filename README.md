@@ -1,10 +1,10 @@
-## test_task
+## test_assignment
 
 ### Build
 <pre><code class="shell">   make</code></pre>
 
 ### Install
-<pre><code class="shell">#  insmod $(PWD)/dmp.ko</code></pre>
+<pre><code class="shell">#  insmod dmp.ko</code></pre>
 
 
 ### Test

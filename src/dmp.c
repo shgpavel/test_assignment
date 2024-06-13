@@ -11,9 +11,16 @@
 #include <linux/kernel.h>
 #include <linux/kobject.h>
 #include <linux/init.h>
-#include <linux/types.h>
 #include <linux/sysfs.h>
 #include <linux/bio.h>
+#include <linux/blk_types.h>
+#include <linux/bvec.h>
+#include <linux/gfp_types.h>
+#include <linux/slab.h>
+#include <linux/spinlock.h>
+#include <linux/spinlock_types.h>
+#include <linux/stddef.h>
+#include <linux/types.h>
 
 #define DM_MSG_PREFIX "dmp"
 
@@ -23,12 +30,12 @@ struct proxier {
 };
 
 struct proxy_data {
-        u32 read_calls;
-        u32 write_calls;
+        unsigned read_calls;
+        unsigned write_calls;
         
-        u64 avg_read_call_size;
-        u64 avg_write_call_size;
-        u64 avg_block_size;
+        unsigned avg_read_call_size;
+        unsigned avg_write_call_size;
+        unsigned avg_block_size;
 };
 
 static struct proxy_data proxy_info = {0};
@@ -37,9 +44,9 @@ static struct kobject *stats_kobj;
 static ssize_t volumes_show(struct kobject *kobj, struct kobj_attribute *attr,
                           char *buffer) {
         return sysfs_emit(buffer,
-                          "read:\nreqs: %u\navg size: %llu\n"
-                          "write:\nreqs: %u\navg size: %llu\n"
-                          "total:\nreqs: %u\navg size: %llu\n",
+                          "read:\nreqs: %u\navg size: %u\n"
+                          "write:\nreqs: %u\navg size: %u\n"
+                          "total:\nreqs: %u\navg size: %u\n",
                           proxy_info.read_calls, proxy_info.avg_read_call_size,
                           proxy_info.write_calls, proxy_info.avg_write_call_size,
                           (proxy_info.read_calls + proxy_info.write_calls),
@@ -54,56 +61,64 @@ static int proxy_ctr(struct dm_target *ti, unsigned int argc, char **argv)
         int ret;
 
         if (argc != 1) {
-                DMERR("dm-proxy: Invalid argument count (expected 1)");
-                return -EINVAL;
+		ti->error = "Invalid argument count (expected 1)";
+		DMERR("dm-proxy: %s", ti->error);
+		return -EINVAL;
         }
 
         meta = kmalloc(sizeof(*meta), GFP_KERNEL);
         if (!meta) {
-                DMERR("dm-proxy: Failed to allocate memory (for meta info)");
+		ti->error = "Failed to allocate memory (for meta info)";
+		DMERR("dm-proxy: %s", ti->error);
                 return -ENOMEM;
         }
 
         ret = dm_get_device(ti, argv[0], dm_table_get_mode(ti->table), &meta->dev);
         if (ret) {
-                DMERR("dm-proxy: Failed to get the device");
+		ti->error = "Failed to get the device";
+                DMERR("dm-proxy: %s", ti->error);
                 kfree(meta);
                 return ret;
         }
       
         stats_kobj = kobject_create_and_add("stat", &THIS_MODULE->mkobj.kobj);
         if (!stats_kobj) {
-                DMERR("dm-proxy: Failed to create statistic kobj");
+		ti->error = "Failed to create statistic kobj";
+		DMERR("dm-proxy: %s", ti->error);
                 return -ENOMEM;
         }
 
         ret = sysfs_create_file(stats_kobj, &stats_kobj_attribute.attr);
         if (ret) {
-                DMERR("dm-proxy: Failed to create sysfs file");
+		ti->error = "Failed to create sysfs file";
+                DMERR("dm-proxy: %s", ti->error);
                 kfree(meta);
                 kobject_put(stats_kobj);
                 return ret;
         }
 
-        ti->private = meta;
-        
+	ti->private = meta;
+	
         return 0;
 }
 
 static void proxy_dtr(struct dm_target *ti)
 {
         struct proxier *meta = ti->private;
-
+        
         dm_put_device(ti, meta->dev);
         kobject_put(stats_kobj);
         kfree(meta);
 }
 
+static spinlock_t proxy_info_lock;
 static int proxy_map(struct dm_target *ti, struct bio *bio)
 {
         struct proxier *meta = ti->private;
-        u64 block_size = bio->bi_iter.bi_size;
+        unsigned block_size = bio->bi_iter.bi_size;
 
+	spin_lock(&proxy_info_lock);
+	
         if (bio_op(bio) == REQ_OP_READ) {
                 proxy_info.avg_read_call_size = proxy_info.avg_read_call_size 
                                                 * proxy_info.read_calls 
@@ -126,7 +141,9 @@ static int proxy_map(struct dm_target *ti, struct bio *bio)
         proxy_info.avg_block_size += block_size 
                 / (proxy_info.write_calls + proxy_info.read_calls);
         
-        
+
+	spin_unlock(&proxy_info_lock);
+	
         bio_set_dev(bio, meta->dev->bdev);
         bio->bi_iter.bi_sector += meta->start_block;
 
@@ -138,7 +155,7 @@ static struct target_type proxy_target = {
 	.name   = "dmp",
 	.version = {1, 0, 0},
 	.module = THIS_MODULE,
-        .dtr    = proxy_dtr,
+	.dtr    = proxy_dtr,
 	.ctr    = proxy_ctr,
 	.map    = proxy_map,
 };
