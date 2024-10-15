@@ -1,5 +1,8 @@
 ## test_assignment
 
+> **⚠️ Note** \
+>  This repo will be deleted soon, code could be found in leetcode_cache(old name)/interview-leetcode-olympiads repo
+
 ### Build
 <pre><code class="shell">   make</code></pre>
 
